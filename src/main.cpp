@@ -29,7 +29,8 @@ SOFTWARE.
 using namespace peg;
 using namespace std;
 
-SCENARIO("vectors can be sized and resized", "[vector]") {
+
+SCENARIO("Ink text can be converted into data", "[ink]") {
 
 	GIVEN("An ink grammar") {
 		// clang-format off
