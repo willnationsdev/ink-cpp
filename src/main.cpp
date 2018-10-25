@@ -49,11 +49,11 @@ SCENARIO("Ink text can be converted into data", "[ink]") {
 # Ported from https://github.com/premek/pink/blob/master/pink/parser.lua
 
 LINES <- TAG_GLOBAL* LINE*
-LINE <- STMT / GATHER / PARA
-STMT <- GLUE / DIVERT / KNOT / STITCH / OPTION / COMM
+LINE <- (STMT / GATHER / PARA) COMM*
+STMT <- GLUE / DIVERT / KNOT / STITCH / OPTION / COMM / TEXT COMM*
 
 PARA <- TAG_ABOVE / TEXT TAG_END
-TEXT <- (!TAG_END .)* _
+TEXT <- (!TAG_END .)* _ / (!COMM_OL)* _ / (!COMM_ML)* _ / (!NL)* _ / (!EOF)* _
 
 TAG_END <- TAG
 TAG_ABOVE <- TAG
@@ -103,7 +103,7 @@ ID <- ([a-zA-Z]+ / '_') ([a-zA-Z0-9] / '_')*
 ~_ <- [ \t\r\n]*
 EOF <- !.
 )";
-					 
+
 		parser parser;
 		// clang-format on
 		std::stringstream out;
@@ -117,15 +117,72 @@ EOF <- !.
 		parser = parser.enable_ast();
 		parser.enable_packrat_parsing();
 
-		WHEN("given an ink file") {
+		WHEN("given a hello world") {
+			shared_ptr<peg::Ast> ast;
+			if (parser.parse(R"(Hello, world!)", ast)) {
+				ast = peg::AstOptimizer(true).optimize(ast);
+				out << peg::ast_to_s(ast);
+			}
+			THEN("parses as text") {
+				REQUIRE(ast->name == "TEXT");
+				REQUIRE(ast->token == "Hello, world!");
+			}
+		}
+		WHEN("given a TODO") {
 			shared_ptr<peg::Ast> ast;
 			if (parser.parse(R"(TODO: This is a todo.)", ast)) {
 				ast = peg::AstOptimizer(true).optimize(ast);
 				out << peg::ast_to_s(ast);
 			}
-			THEN("return ast") {
+			THEN("parses TODO content") {
 				REQUIRE(ast->name == "TODO_CONTENT");
 				REQUIRE(ast->token == "This is a todo.");
+			}
+		}
+		WHEN("given a one-line comment") {
+			shared_ptr<peg::Ast> ast;
+			if (parser.parse(R"(
+					This is text. // and this is an OL comment
+					and more text.
+				)", ast)) {
+				ast = peg::AstOptimizer(true).optimize(ast);
+				out << peg::ast_to_s(ast);
+			}
+			THEN("parses out the one-line comment") {
+				auto node = ast;
+				REQUIRE(ast->name == "LINES");
+				node = node->nodes[0];
+				REQUIRE(ast->name == "LINE");
+				node = node->nodes[1];
+				REQUIRE(ast->name == "COMM_OL");
+				node = node->nodes[0];
+				REQUIRE(node->name == "COMM_OL_CONTENT");
+				REQUIRE(node->token == "and this is an OL comment");
+			}
+		}
+		WHEN("given a multi-line comment") {
+			shared_ptr<peg::Ast> ast;
+			if (parser.parse(R"(
+					Text /* with a
+					multiline
+					comment */ can be useful.
+				)", ast)) {
+				ast = peg::AstOptimizer(true).optimize(ast);
+				out << peg::ast_to_s(ast);
+			}
+			THEN("parses out the multi-line comment") {
+				auto node = ast;
+				REQUIRE(ast->name == "LINES");
+				node = node->nodes[0];
+				REQUIRE(ast->name == "LINE");
+				node = node->nodes[1];
+				REQUIRE(ast->name == "COMM_ML");
+				node = node->nodes[0];
+				REQUIRE(node->name == "COMM_ML_CONTENT");
+				REQUIRE(node->token == "and this is an OL comment");
+				//REQUIRE(ast->token == "with a\n multiline\n comment");
+				cout << node->token << std::endl;
+				cout << node->token.length();
 			}
 		}
 	}
