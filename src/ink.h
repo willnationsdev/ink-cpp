@@ -1,99 +1,92 @@
 #ifndef INK_H
 #define INK_H
 
-#include "thirdparty/peglib/peglib.h"
+#include "thirdparty/cpp-peglib/peglib.h"
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <variant>
+#include <sstream>
+
+#define string_t std::string
 
 namespace ink {
 
     enum Error {
-        CALL_OK,
+        OK,
         ERR_INVALID_COMMAND,
         ERR_INVALID_CHOICE,
     };
 
-    struct Range {
-        uint64_t start;
-        uint64_t end;
-    }
-
-    class Ink;
-
-    class InkScript {
-        friend class Ink;
-
-        Ink *ink;
-    protected:
-        Ink *get_ink() const;
-    public:
-        Error new_paragraph();
-        Error append_text(const char *p_text, size_t p_line);
-        Error add_tag(const char *p_text, size_t p_line)
-
-        Error load(const char *p_path);
-        Error save(const char *p_path);
-
-        InkScript(const Ink &p_ink);
+    enum DataType {
+        TEXT,
+        PRETEXT,
+        TAG,
+        LABEL,
+        EXPRESSION,
+        SINGLE_CHOICE,
+        MULTI_CHOICE,
+        GATHER,
+        KNOT,
+        STITCH
     };
 
     class Ink {
 
-        struct AddressableData {
-            std::vector<const char *> addresses;
-            std::unordered_map<size_t, size_t> address_map; // address-index to data-index
+        const uint8_t MAX_LABEL_LAYERS = 8;                             // How many levels label namespaces can have
 
-            void bind_index_to_address(const char *p_address, size_t target_index) {
-                addresses.push_back(std::strcpy(p_address));
-                address_map[address.size()-1] = target_index;
-            }
-            size_t get_index_by_address(const char *p_address) {
-                return addresses[address_map[p_address]];
-            }
+        typedef std::pair<DataType, string_t *> data_t;                 // the type of the data and the string content it might have
+        typedef size_t content_id_t;                                    // an index into the data vector
+        typedef std::variant<int, float, const char *> expv_t;          // an expression's allowed value type
 
-            ~AddressableData() {
-                for (const char *an_address : addresses) {
-                    if (an_address)
-                        delete an_address;
-                }
-            }
-        };
+        std::vector<data_t> data;                                       // all story data
+        std::vector<size_t> lines;                                      // The line in which the data exists. vector index == data index. 
+        std::unordered_set<string_t> files;                             // files that source the data
+        std::unordered_map<size_t, size_t> file_map;                    // The file in which the data exists. key == data index, value == file index.
+        std::vector<size_t> texts;                                      // index for TEXT data
+        std::vector<size_t> tags;                                       // index for TAG data
+        std::vector<size_t> expressions;                                // index for EXPRESSiON data
+        std::unordered_map<size_t, expv_t> values;                      // the values of expressions
+        std::unordered_map<std::vector<size_t>, size_t> visits;         // the number of times a label has been visited
+        std::vector<string_t *> labels;                                 // label hierarchy for namespaces
 
-        typedef data_t size_t; // an index into the data vector
-        typedef expv_t std::variant<int, float, const char *>; // an expression's allowed value type
-        typedef labelseq_t std::vector<const char *>; // a sequence of labels
-
-        struct LabelsNode {
-            LabelsNode *parent;
-            std::vector<LabelsNode *> children;
-            std::vector<const char *> labels;
-            std::unordered_map<size_t, data_t> labels_map; // label_idx -> data_idx
-        };
-
-        std::vector<std::string> data;                          // all story content
-        std::vector<size_t> lines;                              // index data_t -> the line in which the data exists
-        std::vector<data_t> texts;                              // narrative content
-        std::vector<data_t> tags;                               // tag content
-        std::vector<data_t> expressions;                        // expression strings
-        std::unordered_map<data_t, expv_t> values;              // the values of expressions
-        std::unordered_map<std::vector<data_t>, size_t> visits; // the number of times a label has been visited
-        LabelsNode label_tree;                                  // 
-        std::vector<Range> paragraphs; // glued together, continuous content
-        std::vector<Range> statements; // idk
+        std::stringstream stream;
+        string_t file;
+        size_t line;
 
     public:
-        Error parse_text(const char *p_text);
-        Error parse_file(const char *p_path);
-        Error parse_script(const InkScript &p_script);
+        // parsing
+        Error parse_text(const string_t &p_text);
+        Error parse_file(const string_t &p_path);
 
+        // generation
+        const string_t &generate_text(Error *r_err = nullptr) const;
+
+        // status operations
+        void set_file(const string_t &p_path);
+        const string_t &get_file() const;
+
+        // load operations
+        Error add_data(DataType p_type, const string_t &p_data, size_t line = -1);
+
+        // story operations
         Error start();
         Error quit();
-        Error advance();
+        Error pause();
+        Error resume();
+        Error reset();
+
+        // navigation
+        Error next();
+        Error previous();
         bool is_at_choice() const;
         Error choose(uint8_t p_option);
-        std::string get_paragraph() const;
+
+        const string_t &get_text() const;
+
+        Ink();
+        ~Ink();
     };
 
 }

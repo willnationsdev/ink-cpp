@@ -29,17 +29,17 @@ if ARGUMENTS.get("use_llvm", "no") == "yes":
     env["CXX"] = "clang++"
 
 if platform == "osx":
-    env.Append(CCFLAGS = ['-g','-O3', '-std=c++14', '-arch', 'x86_64'])
+    env.Append(CCFLAGS = ['-g','-O3', '-std=c++17', '-arch', 'x86_64'])
     env.Append(LINKFLAGS = ['-arch', 'x86_64', '-framework', 'Cocoa', '-Wl,-undefined,dynamic_lookup'])
 
 if platform == "linux":
-    env.Append(CCFLAGS = ['-fPIC', '-g','-O3', '-std=c++14'])
+    env.Append(CCFLAGS = ['-fPIC', '-g','-O3', '-std=c++17'])
 
 if platform == "windows":
     if target == "debug":
-        env.Append(CCFLAGS = ['-EHsc', '-D_DEBUG', '/MDd'])
+        env.Append(CCFLAGS = ['-EHsc', '-D_DEBUG', '/MDd', '/std:c++17'])
     else:
-        env.Append(CCFLAGS = ['-O2', '-EHsc', '-DNDEBUG', '/MD'])
+        env.Append(CCFLAGS = ['-O2', '-EHsc', '-DNDEBUG', '/MD', '/std:c++17'])
 
 sources = []
 add_sources(sources, "src")
